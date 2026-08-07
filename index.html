@@ -11,14 +11,16 @@
         body { background-color: var(--bg-body); color: var(--text-dark); min-height: 100vh; }
         
         #auth-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(11, 25, 44, 0.85); backdrop-filter: blur(8px); display: flex; justify-content: center; align-items: center; z-index: 9999; }
-        .auth-card { background: white; padding: 32px; border-radius: 12px; width: 100%; max-width: 400px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2); text-align: center; }
+        .auth-card { background: white; padding: 32px; border-radius: 12px; width: 90%; max-width: 400px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2); text-align: center; }
         .auth-card h2 { color: var(--primary); font-size: 22px; margin-bottom: 8px; }
         .auth-card p { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; }
-        .auth-form .form-group { text-align: left; margin-bottom: 14px; }
-        .auth-form label { font-size: 12px; font-weight: 700; color: var(--primary); margin-bottom: 4px; display: block; }
-        .auth-form input { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; }
-        .btn-auth { background: var(--brand-red); color: white; border: none; padding: 12px; border-radius: 6px; width: 100%; font-weight: 700; cursor: pointer; margin-top: 10px; display: block; width: 100%; }
-        .auth-toggle { margin-top: 16px; font-size: 13px; color: var(--accent); font-weight: 700; cursor: pointer; text-decoration: underline; display: inline-block; padding: 5px; }
+        .form-group { text-align: left; margin-bottom: 14px; }
+        .form-group label { font-size: 12px; font-weight: 700; color: var(--primary); margin-bottom: 4px; display: block; }
+        .form-group input { width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; }
+        
+        .btn-group { display: flex; gap: 10px; margin-top: 15px; }
+        .btn-main { flex: 1; background: var(--brand-red); color: white; border: none; padding: 12px; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 14px; }
+        .btn-secondary { flex: 1; background: var(--accent); color: white; border: none; padding: 12px; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 14px; }
 
         #app-layout { display: none; min-height: 100vh; }
         .sidebar { width: 260px; background: var(--primary); color: white; padding: 24px 16px; display: flex; flex-direction: column; justify-content: space-between; }
@@ -30,23 +32,21 @@
 
     <div id="auth-overlay">
         <div class="auth-card">
-            <h2 id="auth-title">Hyni në Platformë</h2>
-            <p id="auth-subtitle">Sistemi i sigurt i menaxhimit të akademisë</p>
+            <h2>Hyni në Platformë</h2>
+            <p>Sistemi i sigurt i menaxhimit të akademisë</p>
 
-            <form class="auth-form" onsubmit="handleAuth(event)">
-                <div class="form-group">
-                    <label>Email-i Zyrtar</label>
-                    <input type="email" id="auth-email" placeholder="klubi@ekipi.com" required>
-                </div>
-                <div class="form-group">
-                    <label>Fjalëkalimi</label>
-                    <input type="password" id="auth-password" placeholder="••••••••" required>
-                </div>
-                <button type="submit" class="btn-auth" id="auth-submit-btn">HYR NË SISTEM</button>
-            </form>
+            <div class="form-group">
+                <label>Email-i Zyrtar</label>
+                <input type="email" id="auth-email" placeholder="klubi@ekipi.com">
+            </div>
+            <div class="form-group">
+                <label>Fjalëkalimi</label>
+                <input type="password" id="auth-password" placeholder="••••••••">
+            </div>
 
-            <div style="margin-top: 15px;">
-                <span class="auth-toggle" id="auth-toggle-btn" onclick="toggleAuthMode()">Nuk keni llogari? Regjistroni Klubin</span>
+            <div class="btn-group">
+                <button type="button" class="btn-main" onclick="kryejHyrjen()">HYR</button>
+                <button type="button" class="btn-secondary" onclick="kryejRegjistrimin()">REGJISTROHU</button>
             </div>
         </div>
     </div>
@@ -57,7 +57,7 @@
                 <h2 style="font-size: 18px;">SPORTS HUB SAAS</h2>
                 <div style="font-size: 11px; color: #94a3b8; margin-top: 4px;" id="user-display-email">Llogaria e Aktivizuar</div>
             </div>
-            <button class="btn-logout" onclick="logout()">🚪 Dil nga Sistemi</button>
+            <button class="btn-logout" onclick="dilNgaSistemi()">🚪 Dil nga Sistemi</button>
         </div>
 
         <div class="main-content">
@@ -70,51 +70,67 @@
         const SUPABASE_URL = 'https://nwjcbhqjtbxlpzftgrxa.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im53amNiaHFqdGJ4bHB6ZnRncnhhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYwNzMwMjEsImV4cCI6MjEwMTY0OTAyMX0.vCi0s9xIb8uAzKe-KcWPoBVlfwY84y6SSg9KTt9s3PE';
         
-        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        var clientSupabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        let isRegisterMode = false;
+        async function kryejHyrjen() {
+            var emriEmail = document.getElementById('auth-email').value;
+            var fjalekalimi = document.getElementById('auth-password').value;
 
-        function toggleAuthMode() {
-            isRegisterMode = !isRegisterMode;
-            document.getElementById('auth-title').innerText = isRegisterMode ? "Regjistro Klubin e Ri" : "Hyni në Platformë";
-            document.getElementById('auth-submit-btn').innerText = isRegisterMode ? "CRIJO LLOGARINË" : "HYR NË SISTEM";
-            document.getElementById('auth-toggle-btn').innerText = isRegisterMode ? "Keni llogari? Hyni këtu" : "Nuk keni llogari? Regjistroni Klubin";
-        }
+            if(!emriEmail || !fjalekalimi) {
+                alert("Ju lutem plotësoni email-in dhe fjalëkalimin!");
+                return;
+            }
 
-        async function handleAuth(e) {
-            e.preventDefault();
-            const email = document.getElementById('auth-email').value;
-            const password = document.getElementById('auth-password').value;
-
-            if (isRegisterMode) {
-                const { data, error } = await supabaseClient.auth.signUp({ email, password });
-                if (error) { alert("Gabim: " + error.message); } 
-                else { alert("✅ Llogaria u krijua me sukses! Tani mund të kyçeni."); toggleAuthMode(); }
+            var pergjigja = await clientSupabase.auth.signInWithPassword({ email: emriEmail, password: fjalekalimi });
+            if (pergjigja.error) {
+                alert("Gabim gjatë hyrjes: " + pergjigja.error.message);
             } else {
-                const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-                if (error) { alert("Gabim: " + error.message); } 
-                else { checkUserSession(data.user); }
+                verifikoPerdoruesin(pergjigja.data.user);
             }
         }
 
-        async function checkUserSession(userOverride) {
-            const user = userOverride || (await supabaseClient.auth.getUser()).data.user;
-            if (user) {
+        async function kryejRegjistrimin() {
+            var emriEmail = document.getElementById('auth-email').value;
+            var fjalekalimi = document.getElementById('auth-password').value;
+
+            if(!emriEmail || !fjalekalimi) {
+                alert("Ju lutem plotësoni email-in dhe fjalëkalimin për t'u regjistruar!");
+                return;
+            }
+
+            var pergjigja = await clientSupabase.auth.signUp({ email: emriEmail, password: fjalekalimi });
+            if (pergjigja.error) {
+                alert("Gabim gjatë regjistrimit: " + pergjigja.error.message);
+            } else {
+                alert("✅ Llogaria u krijua me sukses! Tani klikoni butonin HYR.");
+            }
+        }
+
+        async function verifikoPerdoruesin(userSeksioni) {
+            var perdoruesi = userSeksioni;
+            if(!perdoruesi) {
+                var res = await clientSupabase.auth.getUser();
+                perdoruesi = res.data ? res.data.user : null;
+            }
+
+            if (perdoruesi) {
                 document.getElementById('auth-overlay').style.display = 'none';
                 document.getElementById('app-layout').style.display = 'flex';
-                document.getElementById('user-display-email').innerText = user.email;
+                document.getElementById('user-display-email').innerText = perdoruesi.email;
             } else {
                 document.getElementById('auth-overlay').style.display = 'flex';
                 document.getElementById('app-layout').style.display = 'none';
             }
         }
 
-        async function logout() {
-            await supabaseClient.auth.signOut();
-            checkUserSession(null);
+        async function dilNgaSistemi() {
+            await clientSupabase.auth.signOut();
+            verifikoPerdoruesin(null);
         }
 
-        window.onload = function() { checkUserSession(); };
+        window.onload = function() {
+            verifikoPerdoruesin();
+        };
     </script>
 </body>
 </html>
