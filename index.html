@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="sq">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sports Analytics SaaS</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root { --primary: #0b192c; --accent: #1e3e62; --brand-red: #d90429; --bg-body: #f1f5f9; --text-dark: #0f172a; --text-muted: #64748b; --border: #cbd5e1; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
+        body { background-color: var(--bg-body); color: var(--text-dark); min-height: 100vh; }
+        
+        #auth-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(11, 25, 44, 0.85); backdrop-filter: blur(8px); display: flex; justify-content: center; align-items: center; z-index: 9999; }
+        .auth-card { background: white; padding: 32px; border-radius: 12px; width: 100%; max-width: 400px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2); text-align: center; }
+        .auth-card h2 { color: var(--primary); font-size: 22px; margin-bottom: 8px; }
+        .auth-card p { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; }
+        .auth-form .form-group { text-align: left; margin-bottom: 14px; }
+        .auth-form label { font-size: 12px; font-weight: 700; color: var(--primary); margin-bottom: 4px; display: block; }
+        .auth-form input { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; }
+        .btn-auth { background: var(--brand-red); color: white; border: none; padding: 12px; border-radius: 6px; width: 100%; font-weight: 700; cursor: pointer; margin-top: 10px; display: block; width: 100%; }
+        .auth-toggle { margin-top: 16px; font-size: 13px; color: var(--accent); font-weight: 700; cursor: pointer; text-decoration: underline; display: inline-block; padding: 5px; }
+
+        #app-layout { display: none; min-height: 100vh; }
+        .sidebar { width: 260px; background: var(--primary); color: white; padding: 24px 16px; display: flex; flex-direction: column; justify-content: space-between; }
+        .main-content { flex: 1; padding: 30px; }
+        .btn-logout { background: #e2e8f0; color: var(--text-dark); border: none; padding: 8px 14px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <div id="auth-overlay">
+        <div class="auth-card">
+            <h2 id="auth-title">Hyni në Platformë</h2>
+            <p id="auth-subtitle">Sistemi i sigurt i menaxhimit të akademisë</p>
+
+            <form class="auth-form" onsubmit="handleAuth(event)">
+                <div class="form-group">
+                    <label>Email-i Zyrtar</label>
+                    <input type="email" id="auth-email" placeholder="klubi@ekipi.com" required>
+                </div>
+                <div class="form-group">
+                    <label>Fjalëkalimi</label>
+                    <input type="password" id="auth-password" placeholder="••••••••" required>
+                </div>
+                <button type="submit" class="btn-auth" id="auth-submit-btn">HYR NË SISTEM</button>
+            </form>
+
+            <div style="margin-top: 15px;">
+                <span class="auth-toggle" id="auth-toggle-btn" onclick="toggleAuthMode()">Nuk keni llogari? Regjistroni Klubin</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="app-layout">
+        <div class="sidebar">
+            <div>
+                <h2 style="font-size: 18px;">SPORTS HUB SAAS</h2>
+                <div style="font-size: 11px; color: #94a3b8; margin-top: 4px;" id="user-display-email">Llogaria e Aktivizuar</div>
+            </div>
+            <button class="btn-logout" onclick="logout()">🚪 Dil nga Sistemi</button>
+        </div>
+
+        <div class="main-content">
+            <h1 style="font-size: 24px; color: var(--primary);">Paneli i Kontrollit të Lojtarëve</h1>
+            <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">Platforma juaj është lidhur me sukses me Supabase Cloud!</p>
+        </div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://nwjcbhqjtbxlpzftgrxa.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im53amNiaHFqdGJ4bHB6ZnRncnhhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYwNzMwMjEsImV4cCI6MjEwMTY0OTAyMX0.vCi0s9xIb8uAzKe-KcWPoBVlfwY84y6SSg9KTt9s3PE';
+        
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        let isRegisterMode = false;
+
+        function toggleAuthMode() {
+            isRegisterMode = !isRegisterMode;
+            document.getElementById('auth-title').innerText = isRegisterMode ? "Regjistro Klubin e Ri" : "Hyni në Platformë";
+            document.getElementById('auth-submit-btn').innerText = isRegisterMode ? "CRIJO LLOGARINË" : "HYR NË SISTEM";
+            document.getElementById('auth-toggle-btn').innerText = isRegisterMode ? "Keni llogari? Hyni këtu" : "Nuk keni llogari? Regjistroni Klubin";
+        }
+
+        async function handleAuth(e) {
+            e.preventDefault();
+            const email = document.getElementById('auth-email').value;
+            const password = document.getElementById('auth-password').value;
+
+            if (isRegisterMode) {
+                const { data, error } = await supabaseClient.auth.signUp({ email, password });
+                if (error) { alert("Gabim: " + error.message); } 
+                else { alert("✅ Llogaria u krijua me sukses! Tani mund të kyçeni."); toggleAuthMode(); }
+            } else {
+                const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+                if (error) { alert("Gabim: " + error.message); } 
+                else { checkUserSession(data.user); }
+            }
+        }
+
+        async function checkUserSession(userOverride) {
+            const user = userOverride || (await supabaseClient.auth.getUser()).data.user;
+            if (user) {
+                document.getElementById('auth-overlay').style.display = 'none';
+                document.getElementById('app-layout').style.display = 'flex';
+                document.getElementById('user-display-email').innerText = user.email;
+            } else {
+                document.getElementById('auth-overlay').style.display = 'flex';
+                document.getElementById('app-layout').style.display = 'none';
+            }
+        }
+
+        async function logout() {
+            await supabaseClient.auth.signOut();
+            checkUserSession(null);
+        }
+
+        window.onload = function() { checkUserSession(); };
+    </script>
+</body>
+</html>
