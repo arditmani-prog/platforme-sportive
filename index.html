@@ -1,162 +1,167 @@
-HTML
-
-
-
-    
-    
-    Sistemi i Regjistrimit të Lojtarëve
-    
-
-
-
-    
-
-        
-SPORTS HUB SAAS — PANELI I REGJISTRIMIT
-
-        SISTEMI ZYRTAR
-    
-
-
-    
-
-        
-
-            📝 Regjistro Lojtar të Ri
-            📋 Lista e Lojtarëve të Regjistruar
-        
-
-
-        
-
-            
-                
-
-                    
-1. Të Dhënat Personale
-
-                    
-
-                        
-Emri & Mbiemri *
-
-                        
-Data e Lindjes *
-
-                        
-Grupmosha *Zgjidh GrupmoshënU7U9U11U13U15Ekipi Prind / Senior
-
-                        
-Pozicioni KryesorPortier (GK)Mbrojtës Qendror (CB)Mbrojtës Anësor (LB/RB)Mesfushor Defensiv (CDM)Mesfushor Qendror (CM)Mesfushor Ofensiv (CAM)Sulmues Anësor (LW/RW)Sulmues Qendre (ST)
-
-                        
-Këmba PreferuarE DjathtëE MajtëDy-këmbësh
-
-                        
-Numri i Telefonit / Prindit
-
-                    
-
-                
-
-
-                
-
-                    
-2. Matjet Antropometrike
-
-                    
-
-                        
-Gjatësia (cm)
-
-                        
-Pesha (kg)
-
-                        
-Përqindja e Yndyrës (%)
-
-                        
-Gjatësia e Këmbës (cm)
-
-                    
-
-                
-
-
-                
-
-                    
-3. Vlerësimet Profesionale Testuese (Notat 1 - 10)
-
-                    
-
-                        
-⚡ Shpejtësia (Sprint 30m)
-
-                        
-🫁 Qëndrueshmëria (Yo-Yo Test)
-
-                        
-⚽ Kontrolli i Topit / Teknika
-
-                        
-🎯 Saktësia e Pasimit / Gjuajtjes
-
-                        
-🧠 Leximi i Lojës / Taktika
-
-                        
-🛡️ Pozicionimi në Fushë
-
-                        
-🔥 Përqendrimi & Mentaliteti
-
-                        
-🤝 Punë në Ekip & Komunikimi
-
-                    
-
-                
-
-
-                
-
-                    
-4. Materialet Video të Lojtarit
-
-                    
-
-                        
-Linku i Videos 1 (YouTube / Drive / Hudl)
-
-                        
-Linku i Videos 2 (Analizë Taktike / Ndeshje)
-
-                    
-
-                    
-
-                        Shënime Të Tjera të Trajnerit / Analistit
-                        
-                    
-
-                
-
-
-                💾 Ruaj Lojtarin në Sistem
-            
-        
-
-
-        
-
-            
-
-                
-Lojtarët e Regjistruar
-
-                
-
-                    
-Nuk ka ende asnjë lojtar të regjistruar.
+-- ============================================================
+-- MANI CLUB — Migrim Multi-Tenant (Faza 1)
+-- Qëllimi: Shtimi i strukturës client_id + RLS për izolim klientësh
+-- Ekzekuto në Supabase SQL Editor, hap pas hapi (seksion pas seksioni)
+-- ============================================================
+
+-- ------------------------------------------------------------
+-- 1. TABELA "clients" — një rresht për çdo klub/akademi
+-- ------------------------------------------------------------
+create table if not exists clients (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,                          -- Emri i klubit/akademisë
+  logo_url text,
+  plan text not null default 'monthly'          -- 'monthly' | 'quarterly' | 'yearly'
+    check (plan in ('monthly','quarterly','yearly')),
+  status text not null default 'active'         -- 'active' | 'blocked'
+    check (status in ('active','blocked')),
+  subscription_expires_at date,
+  created_at timestamptz not null default now()
+);
+
+comment on table clients is 'Çdo rresht = një klub/akademi (tenant) në platformën SaaS';
+
+-- ------------------------------------------------------------
+-- 2. LIDHJA client_id te profiles (përdoruesit)
+-- ------------------------------------------------------------
+alter table profiles
+  add column if not exists client_id uuid references clients(id),
+  add column if not exists department text;
+  -- department: 'super_admin' | 'president' | 'head_coach' | 'staff' | 'legal'
+  --           | 'medical' | 'analysis' | 'athletic' | 'first_team' | 'academy'
+
+-- Super Admin nuk i përket asnjë klienti specifik (client_id mbetet NULL për ta)
+
+-- ------------------------------------------------------------
+-- 3. SHTIMI I client_id NË TABELAT EKZISTUESE
+-- Përshtat listën sipas emrave reale të tabelave në bazën tënde
+-- ------------------------------------------------------------
+alter table staff              add column if not exists client_id uuid references clients(id);
+alter table players             add column if not exists client_id uuid references clients(id);
+alter table medical_records     add column if not exists client_id uuid references clients(id);
+alter table contracts           add column if not exists client_id uuid references clients(id);
+alter table player_analysis     add column if not exists client_id uuid references clients(id);
+alter table fitness_tests       add column if not exists client_id uuid references clients(id);
+alter table matches             add column if not exists client_id uuid references clients(id);
+alter table academy_players     add column if not exists client_id uuid references clients(id);
+alter table requests            add column if not exists client_id uuid references clients(id);
+
+-- Indekse për performancë (çdo query do filtrohet sipas client_id)
+create index if not exists idx_staff_client            on staff(client_id);
+create index if not exists idx_players_client           on players(client_id);
+create index if not exists idx_medical_records_client   on medical_records(client_id);
+create index if not exists idx_contracts_client         on contracts(client_id);
+create index if not exists idx_player_analysis_client   on player_analysis(client_id);
+create index if not exists idx_fitness_tests_client     on fitness_tests(client_id);
+create index if not exists idx_matches_client           on matches(client_id);
+create index if not exists idx_academy_players_client    on academy_players(client_id);
+create index if not exists idx_requests_client          on requests(client_id);
+
+-- ------------------------------------------------------------
+-- 4. FUNKSION NDIHMËS — kthen client_id e përdoruesit të loguar
+-- ------------------------------------------------------------
+create or replace function auth_client_id()
+returns uuid
+language sql
+stable
+security definer
+as $$
+  select client_id from profiles where id = auth.uid()
+$$;
+
+create or replace function auth_is_super_admin()
+returns boolean
+language sql
+stable
+security definer
+as $$
+  select department = 'super_admin' from profiles where id = auth.uid()
+$$;
+
+-- ------------------------------------------------------------
+-- 5. ROW LEVEL SECURITY — aktivizim + policy shembull
+-- Përsërit të njëjtin model për çdo tabelë me client_id
+-- ------------------------------------------------------------
+alter table staff             enable row level security;
+alter table players            enable row level security;
+alter table medical_records    enable row level security;
+alter table contracts          enable row level security;
+alter table player_analysis    enable row level security;
+alter table fitness_tests      enable row level security;
+alter table matches            enable row level security;
+alter table academy_players    enable row level security;
+alter table requests           enable row level security;
+
+-- Shembull policy (përsërite për çdo tabelë duke ndryshuar emrin):
+create policy "tenant_isolation_select" on players
+  for select
+  using (
+    auth_is_super_admin()
+    or client_id = auth_client_id()
+  );
+
+create policy "tenant_isolation_insert" on players
+  for insert
+  with check (
+    auth_is_super_admin()
+    or client_id = auth_client_id()
+  );
+
+create policy "tenant_isolation_update" on players
+  for update
+  using (
+    auth_is_super_admin()
+    or client_id = auth_client_id()
+  );
+
+create policy "tenant_isolation_delete" on players
+  for delete
+  using (
+    auth_is_super_admin()
+    or client_id = auth_client_id()
+  );
+
+-- ⚠️ VEREJTJE: policy-t e mësipërme janë shembull vetëm për "players".
+-- Duhen krijuar 4 policy (select/insert/update/delete) për SECILËN
+-- nga tabelat e listuara në seksionin 3, me të njëjtin model.
+-- Mund ta automatizoj këtë me një script gjenerimi nëse do.
+
+-- ------------------------------------------------------------
+-- 6. MODULI JURIDIK (i ri) — tabelë që mungonte në spec
+-- ------------------------------------------------------------
+create table if not exists legal_contracts (
+  id uuid primary key default gen_random_uuid(),
+  client_id uuid not null references clients(id),
+  contract_code text not null,
+  subject text not null,                -- lojtari/stafi
+  value_eur numeric(10,2),
+  expires_at date,
+  special_clauses text,
+  document_url text,                    -- link te Supabase Storage
+  created_at timestamptz not null default now()
+);
+
+alter table legal_contracts enable row level security;
+
+create policy "tenant_isolation_select" on legal_contracts
+  for select using (auth_is_super_admin() or client_id = auth_client_id());
+create policy "tenant_isolation_insert" on legal_contracts
+  for insert with check (auth_is_super_admin() or client_id = auth_client_id());
+create policy "tenant_isolation_update" on legal_contracts
+  for update using (auth_is_super_admin() or client_id = auth_client_id());
+create policy "tenant_isolation_delete" on legal_contracts
+  for delete using (auth_is_super_admin() or client_id = auth_client_id());
+
+-- ------------------------------------------------------------
+-- 7. QENDRA E VENDIMEVE (nëse "requests" nuk ka status të mjaftueshëm)
+-- ------------------------------------------------------------
+alter table requests
+  add column if not exists status text not null default 'dërguar'
+    check (status in ('dërguar','në proces','përfunduar')),
+  add column if not exists sender_department text,
+  add column if not exists title text;
+
+-- ============================================================
+-- FUND MIGRIMI FAZA 1
+-- Hapi tjetër: Faza 5 do shtojë tabelën "subscriptions" + Stripe webhook
+-- ============================================================
